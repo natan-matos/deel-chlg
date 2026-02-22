@@ -1,0 +1,8 @@
+version: 2
+sources:
+  - name: globepay
+    database: DEEL
+    schema: RAW
+    tables:
+      - name: globepay_acceptance
+      - name: globepay_chargeback

@@ -1,0 +1,49 @@
+-- models/marts/fct_globepay__transactions.sql
+--
+-- Production fact table joining acceptance + chargeback data.
+-- Grain: one row per transaction (external_ref).
+-- Use this model to answer questions about acceptance rates,
+-- declined amounts by country, and chargeback coverage.
+
+with acceptance as (
+    select * from {{ ref('stg_globepay__acceptance') }}
+),
+
+chargeback as (
+    select * from {{ ref('stg_globepay__chargeback') }}
+),
+
+joined as (
+    select
+        -- identifiers
+        a.external_ref,
+        a.merchant_ref,
+        -- dimensions
+        a.transaction_at,
+        a.transaction_month,
+        date_trunc('week',  a.transaction_at)   as transaction_week,
+        date_trunc('day',   a.transaction_at)   as transaction_date,
+        year(a.transaction_at)                  as transaction_year,
+        month(a.transaction_at)                 as transaction_month_num,
+        a.country,
+        a.currency,
+        a.payment_source,
+        a.cvv_provided,
+        -- transaction outcome
+        a.state,
+        a.is_accepted,
+        (not a.is_accepted)                     as is_declined,
+        -- amounts 
+        a.amount,
+        a.amount_usd,
+        -- chargeback
+        c.has_chargeback,
+        -- flag rows where chargeback data is absent (left-join guard)
+        (c.external_ref is null)                as is_missing_chargeback_data
+    
+    from acceptance a
+    left join chargeback c
+        on a.external_ref = c.external_ref
+)
+
+select * from joined
