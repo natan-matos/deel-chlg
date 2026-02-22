@@ -94,7 +94,7 @@ deel/
 
 ## Lineage Graph
 
-![alt text](data-lineage.png)
+![alt text](screenshots/data-lineage.png)
 
 
 To generate the interactive lineage graph locally:
@@ -152,6 +152,27 @@ models:
       - name: amount_usd
         description: "Transaction amount normalised to USD using the rates JSON from the API response."
 ```
+
+---
+
+## Dashboard
+
+The analysis is visualised in a Streamlit in Snowflake app. Screenshots below.
+
+### KPI Overview
+![KPI Header](screenshots/01_header.png)
+
+### Q1 · Acceptance Rate Over Time
+![Acceptance Rate](screenshots/02_acceptance_rate.png)
+
+### Q2 · Declined by Country
+![Declined by Country](screenshots/03_declined_by_country.png)
+
+### Q3 · Missing Chargeback Data
+![Missing Chargebacks](screenshots/04_missing_chargebacks.png) 
+
+### Explorer · Raw Transactions
+![Transaction Explorer](screenshots/05_explorer.png) 
 
 ---
 
