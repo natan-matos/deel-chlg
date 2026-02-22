@@ -14,7 +14,7 @@ monthly as (
         sum(is_accepted::int) as accepted_transactions,
         round(sum(is_accepted::int) / count(*) * 100, 2) as acceptance_rate_pct,
         sum(amount_usd) as total_amount_usd,
-        sum(is_accepted::int) as accepted_amount_usd,
+        sum(case when is_accepted then amount_usd end) as accepted_amount_usd,
         sum(case when not is_accepted then amount_usd end) as declined_amount_usd
     from base
     group by 1

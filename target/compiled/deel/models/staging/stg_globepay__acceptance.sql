@@ -1,8 +1,3 @@
--- models/staging/stg_globepay_acceptance.sql
---
--- Cleans and type-casts the raw Globepay Acceptance Report.
--- One row per transaction attempt.
-
 with source as (
     select * from DEEL.RAW.globepay_acceptance
 ),
@@ -19,19 +14,23 @@ renamed as (
 
         -- temporal
         to_timestamp_ntz(date_time)                      as transaction_at,
-        date_trunc('month', transaction_at)              as transaction_month,
+        date_trunc('month', to_timestamp_ntz(date_time)) as transaction_month,
 
         -- transaction details
         upper(trim(state))                               as state,
         (upper(trim(state)) = 'ACCEPTED')::boolean       as is_accepted,
-        amount::float                                    as amount,
+        (amount::float / 100)                            as amount,
         upper(trim(currency))                            as currency,
         upper(trim(country))                             as country,
         cvv_provided::boolean                            as cvv_provided,
+        try_parse_json(rates)                            as rates_json
 
-        -- exchange rates stored as JSON string → parse key fields
-        try_parse_json(rates)                            as rates_json,
-         -- derived: normalise amount to USD
+    from source
+),
+
+final as (
+    select
+        *,
         case currency
             when 'USD' then amount
             when 'EUR' then amount / nullif(rates_json['EUR']::float, 0)
@@ -40,8 +39,7 @@ renamed as (
             when 'MXN' then amount / nullif(rates_json['MXN']::float, 0)
             else null
         end                                              as amount_usd
-
-    from source
+    from renamed
 )
 
-select * from renamed
+select * from final
