@@ -1,4 +1,4 @@
-# Deel Data Engineering Challenge
+# Deel Analytics Engineer Challenge
 > dbt + Snowflake · Globepay Acceptance and Chargeback Reports
 
 ---
