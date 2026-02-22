@@ -1,8 +1,80 @@
 version: 2
+
 sources:
   - name: globepay
+    description: >
+      Raw payment transaction data from the Globepay Payments API.
+      Loaded into Snowflake RAW schema. Two tables: acceptance report
+      and chargeback report, joined on external_ref.
     database: DEEL
     schema: RAW
+
     tables:
       - name: globepay_acceptance
+        description: >
+          One row per transaction attempt. Contains payment outcome (state),
+          amount, currency, country, exchange rates, and card metadata.
+        config:
+          loaded_at_field: date_time
+          freshness:
+            warn_after: {count: 24, period: hour}
+            error_after: {count: 48, period: hour}
+        columns:
+          - name: external_ref
+            description: Unique transaction identifier.
+            tests:
+              - not_null
+              - unique
+
+          - name: date_time
+            description: Timestamp of the transaction as a string. Cast to TIMESTAMP_NTZ in staging.
+            tests:
+              - not_null
+
+          - name: state
+            description: Transaction outcome. Either ACCEPTED or DECLINED.
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['ACCEPTED', 'Accepted', 'DECLINED', 'Declined']
+
+          - name: amount
+            description: Transaction amount in minor units (divide by 100 for actual value).
+            tests:
+              - not_null
+
+          - name: currency
+            description: Three-character ISO currency code.
+            tests:
+              - not_null
+
+          - name: country
+            description: Two-character ISO country code of the card.
+            tests:
+              - not_null
+
+          - name: rates
+            description: >
+              JSON string containing exchange rates relative to USD at the time
+              of the transaction. Used to normalise amounts to USD in staging.
+            tests:
+              - not_null
+
       - name: globepay_chargeback
+        description: >
+          One row per transaction with chargeback status.
+          Joined to the acceptance report on external_ref in the fact table.
+          No timestamp column available - freshness check not applicable.
+        columns:
+          - name: external_ref
+            description: Unique transaction identifier. Foreign key to globepay_acceptance.
+            tests:
+              - not_null
+              - unique
+
+          - name: chargeback
+            description: Chargeback status as a string. Either TRUE or FALSE.
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['TRUE', 'FALSE', 'True', 'False']

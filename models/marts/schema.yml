@@ -1,0 +1,179 @@
+version: 2
+
+models:
+  - name: fct_globepay__transactions
+    description: >
+      Grain-level fact table. One row per transaction joining acceptance and chargeback data.
+      This is the single source of truth for all transaction-level analysis.
+      Materialized as an incremental table — on each run only new transactions
+      (based on transaction_at) are processed and upserted on external_ref.
+    columns:
+      - name: external_ref
+        description: Unique transaction identifier from the Globepay API.
+        tests:
+          - not_null
+          - unique
+
+      - name: merchant_ref
+        description: Merchant order number passed in the payment request.
+        tests:
+          - not_null
+
+      - name: transaction_at
+        description: Timestamp of the transaction. Cast from raw string to TIMESTAMP_NTZ.
+        tests:
+          - not_null
+
+      - name: transaction_month
+        description: Transaction timestamp truncated to month. Used for monthly aggregations.
+
+      - name: transaction_week
+        description: Transaction timestamp truncated to week.
+
+      - name: transaction_date
+        description: Transaction timestamp truncated to day.
+
+      - name: transaction_year
+        description: Year of the transaction.
+
+      - name: transaction_month_num
+        description: Numeric month of the transaction (1-12).
+
+      - name: country
+        description: Two-character ISO country code of the card.
+        tests:
+          - not_null
+
+      - name: currency
+        description: Three-character ISO currency code of the transaction.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['USD', 'EUR', 'GBP', 'CAD', 'MXN']
+
+      - name: payment_source
+        description: Payment method source as returned by the Globepay API.
+
+      - name: cvv_provided
+        description: Boolean flag indicating whether CVV was provided in the payment request.
+
+      - name: state
+        description: Raw transaction state string from the API.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ACCEPTED', 'DECLINED']
+
+      - name: is_accepted
+        description: Boolean derived from state. True if the transaction was accepted.
+        tests:
+          - not_null
+
+      - name: is_declined
+        description: Boolean derived from state. True if the transaction was declined.
+        tests:
+          - not_null
+
+      - name: amount
+        description: >
+          Transaction amount in the original currency. Converted from minor units
+          (divided by 100) as per the Globepay API specification.
+        tests:
+          - not_null
+
+      - name: amount_usd
+        description: >
+          Transaction amount normalised to USD using exchange rates from the
+          rates JSON field in the API response.
+
+      - name: has_chargeback
+        description: Boolean indicating whether the transaction has been chargebacked.
+
+      - name: is_missing_chargeback_data
+        description: >
+          Boolean flag set to true when no matching record exists in the chargeback
+          report for this transaction. Derived from the left join guard on external_ref.
+        tests:
+          - not_null
+
+  - name: fct_globepay__missing_chargebacks
+    description: >
+      Subset of fct_globepay__transactions where chargeback data is absent.
+      Returns 0 rows in the current dataset — full chargeback coverage confirmed.
+      Will automatically surface gaps as new data loads.
+    columns:
+      - name: external_ref
+        description: Unique transaction identifier.
+        tests:
+          - not_null
+          - unique
+
+  - name: agg_globepay__acceptance_by_month
+    description: >
+      Monthly rollup of transaction volume and acceptance rates.
+      Answers Q1: "What is the acceptance rate over time?"
+    columns:
+      - name: transaction_month
+        description: Month of the transactions being aggregated.
+        tests:
+          - not_null
+          - unique
+
+      - name: total_transactions
+        description: Total number of transactions in the month.
+        tests:
+          - not_null
+
+      - name: accepted_transactions
+        description: Number of accepted transactions in the month.
+        tests:
+          - not_null
+
+      - name: acceptance_rate_pct
+        description: Percentage of transactions accepted in the month. Range 0-100.
+        tests:
+          - not_null
+
+      - name: total_amount_usd
+        description: Total transaction volume in USD for the month.
+
+      - name: accepted_amount_usd
+        description: Total accepted transaction volume in USD for the month.
+
+      - name: declined_amount_usd
+        description: Total declined transaction volume in USD for the month.
+
+  - name: agg_globepay__declined_by_country
+    description: >
+      Country-level rollup of declined transaction counts and USD volumes.
+      Answers Q2: "Which countries had declined transaction volumes exceeding $25M?"
+      In the current dataset no country exceeds the threshold.
+    columns:
+      - name: country
+        description: Two-character ISO country code.
+        tests:
+          - not_null
+          - unique
+
+      - name: total_transactions
+        description: Total number of transactions for the country.
+        tests:
+          - not_null
+
+      - name: declined_transactions
+        description: Number of declined transactions for the country.
+        tests:
+          - not_null
+
+      - name: declined_amount_usd
+        description: Total declined transaction volume in USD for the country.
+
+      - name: decline_rate_pct
+        description: Percentage of transactions declined for the country. Range 0-100.
+
+      - name: exceeds_25m_threshold
+        description: Boolean flag. True if declined_amount_usd exceeds $25,000,000.
+        tests:
+          - not_null

@@ -10,11 +10,18 @@ create or replace transient table DEEL.analytics.fct_globepay__transactions
 --
 -- Production fact table joining acceptance + chargeback data.
 -- Grain: one row per transaction (external_ref).
--- Use this model to answer questions about acceptance rates,
--- declined amounts by country, and chargeback coverage.
+--
+-- Materialization: incremental with upsert on external_ref.
+-- In production, Globepay generates high transaction volumes daily —
+-- incremental materialisation avoids reprocessing full history on every run,
+-- reducing warehouse compute and run time significantly.
+
+
+
 
 with acceptance as (
     select * from DEEL.staging.stg_globepay__acceptance
+    
 ),
 
 chargeback as (
@@ -41,14 +48,14 @@ joined as (
         a.state,
         a.is_accepted,
         (not a.is_accepted)                     as is_declined,
-        -- amounts 
+        -- amounts
         a.amount,
         a.amount_usd,
         -- chargeback
         c.has_chargeback,
         -- flag rows where chargeback data is absent (left-join guard)
         (c.external_ref is null)                as is_missing_chargeback_data
-    
+
     from acceptance a
     left join chargeback c
         on a.external_ref = c.external_ref

@@ -1,0 +1,112 @@
+version: 2
+
+models:
+  - name: stg_globepay__acceptance
+    description: >
+      Cleaned and typed view on top of the raw Globepay acceptance report.
+      One row per transaction attempt. Handles type casting, column renaming,
+      boolean derivations, minor unit conversion, and USD normalisation via
+      exchange rates from the rates JSON field.
+    columns:
+      - name: external_ref
+        description: Unique transaction identifier from the Globepay API.
+        tests:
+          - not_null
+          - unique
+
+      - name: merchant_ref
+        description: Merchant order number. Renamed from raw column ref.
+        tests:
+          - not_null
+
+      - name: is_active
+        description: Boolean cast from the raw status field.
+        tests:
+          - not_null
+
+      - name: payment_source
+        description: Payment method source as returned by the API.
+
+      - name: transaction_at
+        description: Transaction timestamp. Cast from raw string to TIMESTAMP_NTZ.
+        tests:
+          - not_null
+
+      - name: transaction_month
+        description: Transaction timestamp truncated to month.
+        tests:
+          - not_null
+
+      - name: state
+        description: Transaction outcome normalised to uppercase and trimmed.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['ACCEPTED', 'DECLINED']
+
+      - name: is_accepted
+        description: Boolean derived from state. True if ACCEPTED.
+        tests:
+          - not_null
+
+      - name: amount
+        description: >
+          Transaction amount in the original currency. Divided by 100 to convert
+          from minor units as per the Globepay API specification.
+        tests:
+          - not_null
+
+      - name: currency
+        description: Three-character ISO currency code, uppercased and trimmed.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['USD', 'EUR', 'GBP', 'CAD', 'MXN']
+
+      - name: country
+        description: Two-character ISO country code, uppercased and trimmed.
+        tests:
+          - not_null
+
+      - name: cvv_provided
+        description: Boolean indicating whether CVV was provided in the payment request.
+        tests:
+          - not_null
+
+      - name: rates_json
+        description: >
+          Parsed JSON object of exchange rates relative to USD at transaction time.
+          Derived from the raw rates string using TRY_PARSE_JSON().
+
+      - name: amount_usd
+        description: >
+          Transaction amount normalised to USD using rates_json.
+          Null if currency is not one of USD, EUR, GBP, CAD, MXN.
+
+  - name: stg_globepay__chargeback
+    description: >
+      Cleaned and typed view on top of the raw Globepay chargeback report.
+      One row per transaction. Casts the raw chargeback string to a boolean.
+    columns:
+      - name: external_ref
+        description: Unique transaction identifier. Foreign key to stg_globepay__acceptance.
+        tests:
+          - not_null
+          - unique
+
+      - name: is_active
+        description: Boolean cast from the raw status field.
+        tests:
+          - not_null
+
+      - name: payment_source
+        description: Payment method source as returned by the API.
+
+      - name: has_chargeback
+        description: >
+          Boolean indicating whether the transaction has been chargebacked.
+          Derived from the raw chargeback string field (TRUE/FALSE).
+        tests:
+          - not_null

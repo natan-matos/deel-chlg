@@ -1,0 +1,47 @@
+version: 2
+
+exposures:
+  - name: globepay_streamlit_dashboard
+    label: Globepay Analytics Dashboard
+    type: dashboard
+    maturity: medium
+    description: >
+      Streamlit in Snowflake dashboard visualising Globepay payment performance.
+      Covers acceptance rate over time, declined transaction volume by country,
+      missing chargeback data, and a raw transaction explorer.
+    owner:
+      name: Natan Matos
+      email: natan@deel.com
+    depends_on:
+      - ref('agg_globepay__acceptance_by_month')
+      - ref('agg_globepay__declined_by_country')
+      - ref('fct_globepay__missing_chargebacks')
+      - ref('fct_globepay__transactions')
+
+  - name: globepay_acceptance_rate_analysis
+    label: Acceptance Rate Over Time
+    type: analysis
+    maturity: high
+    description: >
+      Monthly acceptance rate analysis answering Q1 of the Globepay challenge.
+      Tracks total transactions, accepted volume, and acceptance rate percentage
+      over time to identify trends or anomalies in payment performance.
+    owner:
+      name: Natan Matos
+      email: natan@deel.com
+    depends_on:
+      - ref('agg_globepay__acceptance_by_month')
+
+  - name: globepay_declined_by_country_analysis
+    label: Declined Transactions by Country
+    type: analysis
+    maturity: high
+    description: >
+      Country-level declined volume analysis answering Q2 of the Globepay challenge.
+      Identifies countries where declined transaction volume exceeds $25M.
+      In the current dataset no country crosses this threshold.
+    owner:
+      name: Natan Matos
+      email: natan@deel.com
+    depends_on:
+      - ref('agg_globepay__declined_by_country')
