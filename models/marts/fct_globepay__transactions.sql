@@ -2,11 +2,26 @@
 --
 -- Production fact table joining acceptance + chargeback data.
 -- Grain: one row per transaction (external_ref).
--- Use this model to answer questions about acceptance rates,
--- declined amounts by country, and chargeback coverage.
+--
+-- Materialization: incremental with upsert on external_ref.
+-- In production, Globepay generates high transaction volumes daily —
+-- incremental materialisation avoids reprocessing full history on every run,
+-- reducing warehouse compute and run time significantly.
+
+
+{{
+    config(
+        materialized='incremental',
+        unique_key='external_ref',
+        on_schema_change='sync_all_columns'
+    )
+}}
 
 with acceptance as (
     select * from {{ ref('stg_globepay__acceptance') }}
+    {% if is_incremental() %}
+        where transaction_at > (select max(transaction_at) from {{ this }})
+    {% endif %}
 ),
 
 chargeback as (
@@ -33,14 +48,14 @@ joined as (
         a.state,
         a.is_accepted,
         (not a.is_accepted)                     as is_declined,
-        -- amounts 
+        -- amounts
         a.amount,
         a.amount_usd,
         -- chargeback
         c.has_chargeback,
         -- flag rows where chargeback data is absent (left-join guard)
         (c.external_ref is null)                as is_missing_chargeback_data
-    
+
     from acceptance a
     left join chargeback c
         on a.external_ref = c.external_ref
